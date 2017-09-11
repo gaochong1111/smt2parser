@@ -1,0 +1,9 @@
+* files
+scanner.h -> util/symbol.h vector.h rational.h
+
+scanner.cpp -> scanner.h
+
+symbol.h -> util.h tptr.h string_buffer.h
+symbol.cpp -> symbol.h str_hashtable.h region.h string_buffer.h z3_omp.h
+
+

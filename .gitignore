@@ -1,0 +1,11 @@
+#
+temp/*
+
+GPATH
+GRTAGS
+GTAGS
+
+*.txt
+*.o
+
+scanner
