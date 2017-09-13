@@ -12,16 +12,16 @@ DYN_RUN_LIB_FLAG = -Wl,-R$(LIB_DIR)
 #---------------------------------------
 # Files
 #---------------------------------------
-SRC = main.cpp smt2scanner.cpp smt2parser_pro.cpp log.cpp
+SRC = main.cpp smt2scanner.cpp smt2parser.cpp log.cpp
 
-INC = smt2scanner.h smt2exception.h  smt2context.h  smt2parser_pro.h log.h
+INC = smt2scanner.h smt2exception.h  smt2context.h  smt2parser.h log.h
 #---------------------------------------
 # Rules
 #---------------------------------------
 all: scanner
 
 scanner:$(subst .cpp,.o,$(SRC))
-	$(CXX) -std=c++11 -o $@ $^ \
+	$(CXX) -std=c++11 -g -o $@ $^ \
 	$(DYN_LINK_LIB_FLAG) \
 	$(DYN_RUN_LIB_FLAG)
 
@@ -38,4 +38,4 @@ clean:
 
 
 %.o: %.cpp $(INC)
-	$(CXX) -std=c++11 -c -o $@ $<
+	$(CXX) -std=c++11 -g -c -o $@ $<

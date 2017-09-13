@@ -15,7 +15,6 @@ public:
         Log m_log;
 
 public:
-        Log& regular_stream() {return m_log;}
         Log& logger() {return m_log;}
 //        sexpr_manager& sm() {return m_sm;}
         z3::context& z3_context() {return m_ctx;}

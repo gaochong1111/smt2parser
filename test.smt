@@ -1,10 +1,13 @@
+ ; ((?E Rat) (?x Rat) (?y Rat) (?F Rat) (?x1 Rat) (?y1 Rat))
 (set-logic QF_SLRDI)
 
 (declare-sort Bsth_t 0)
+; (declare-fun Y() Bsth_t)
 
 (declare-fun left() (Field Bsth_t Bsth_t))
 (declare-fun right() (Field Bsth_t Bsth_t))
 (declare-fun data() (Field Bsth_t Rat))
+
 
 (define-fun bsth ((?E Bsth_t) (?x Rat) (?y Rat) (?F Bsth_t) (?x1 Rat) (?y1 Rat)) Space
 (tospace
@@ -46,6 +49,22 @@
     )
 )
 )
+
+
+; (> 1 1.0)
+(exists ((x Int) (y Int)) (tobool (ssep
+    (pto Y (ref left Y))
+    (pto Y (sref (ref right Y) (ref left Y) (ref data y)))
+    )))
+
+(tospace (tobool (ssep
+    (pto Y (ref left Y))
+    (pto Y (sref (ref right Y) (ref left Y) (ref data 1.0)))
+    )))
+
+
+
+; (and (> 1 1.0) (tobool emp) (tobool ))
 
 
 

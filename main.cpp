@@ -2,7 +2,7 @@
 #include <sstream>
 #include <fstream>
 #include "smt2scanner.h"
-#include "smt2parser_pro.h"
+#include "smt2parser.h"
 // #include "sexpr.h"
 
 using namespace std;
@@ -61,7 +61,7 @@ void test_parser() {
                 smt2parser parser(m_ctx, f);
                 int N = 6;
                 for (int i=0; i<N; i++) {
-                        parser.next();
+                        // parser.next();
                         parser.parse_cmd();
                 }
 
