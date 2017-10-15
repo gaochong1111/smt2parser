@@ -1,12 +1,15 @@
+ ; ((?E Rat) (?x Rat) (?y Rat) (?F Rat) (?x1 Rat) (?y1 Rat))
 (set-logic QF_SLRDI)
 
 (declare-sort Bsth_t 0)
+; (declare-fun Y() Bsth_t)
 
 (declare-fun left() (Field Bsth_t Bsth_t))
 (declare-fun right() (Field Bsth_t Bsth_t))
 (declare-fun data() (Field Bsth_t Rat))
 
-(define-fun bsth ((?E Bsth_t) (?x Rat) (?y Rat) (?F Bsth_t) (?x1 Rat) (?y1 Rat) ) Space
+
+(define-fun bsth ((?E Bsth_t) (?x Rat) (?y Rat) (?F Bsth_t) (?x1 Rat) (?y1 Rat)) Space
 (tospace
     (or
         (and
@@ -47,24 +50,60 @@
 )
 )
 
-(declare-fun Z1() Bsth_t)
-(declare-fun Z2() Bsth_t)
-(declare-fun Z3() Bsth_t)
-(declare-fun Z4() Bsth_t)
 
-(declare-fun r1() Rat)
-(declare-fun r2() Rat)
-(declare-fun r3() Rat)
-(declare-fun r4() Rat)
-(declare-fun r5() Rat)
+; (> 1 1.0)
+(exists ((x Int) (y Int)) (tobool (ssep
+    (pto Y (ref left Y))
+    (pto Y (sref (ref right Y) (ref left Y) (ref data y)))
+    )))
 
-(declare-fun h1() Int)
-(declare-fun h2() Int)
+(tospace (tobool (ssep
+    (pto Y (ref left Y))
+    (pto Y (sref (ref right Y) (ref left Y) (ref data 1.0)))
+    )))
 
 
-(assert (and true (distinct Z1 Z2) (< r1 r2) (= h1 h2) (<= h1 (+ h2 10)) (tobool (ssep (pto Z1 (sref (ref left Z2) (ref right Z3) (ref data r1))) (bsth Z2 r2  r3 Z4 r4 r5)))))
 
-(check-sat)
+; (and (> 1 1.0) (tobool emp) (tobool ))
+
+
+
+
+((x Int))
+
+(SetRef Int)
+(Field Int Bool)
+Int
+
+
+(< 0 1.0)
+
+(=> (< 0 (+ (- 1) 2 (+ 3 4) (- 5 6) (* 7 8))) (or false false))
+(and true false)
+(+ 1 1)
+
+(+ "123" "123" |123| #x111 #b111 123.123)
+
+(theory
+    :sorts ((Bool 0))
+    :funs ((true Bool) (false Bool)))
+
+(assert true)
+
+(+ x (- 1 1))
+
+(define-fun f (x Int) Int (+ x 1))
+
+
+(+ 1 1)
+
+(assert true)
+
+(set-logic QF_SLRDI)
+
+
+
+
 
 
 

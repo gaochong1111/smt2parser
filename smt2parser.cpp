@@ -1,7 +1,7 @@
 #include <cassert>
 
 #include "smt2parser.h"
-// #include "util.h"
+#include "solver.h"
 
 
 void smt2parser::scan_core() {
@@ -80,71 +80,6 @@ void smt2parser::error(char const * msg) {
 void smt2parser::error_wo_pos(char const * msg) {
         logger().log_format("(error: %s)", msg);
 }
-
-/*void smt2parser::parse_sexpr() {
-  unsigned stack_pos  = m_sexpr_stack.size();
-  unsigned num_frames = 0;
-  do {
-  unsigned line = line();
-  unsigned pos  =  pos();
-  switch (curr()) {
-  case smt2scanner::LEFT_PAREN: {
-  m_sexpr_frame_stack.push_back(m_sexpr_stack.size());
-  num_frames++;
-  break;
-  }
-  case smt2scanner::RIGHT_PAREN: {
-  if (num_frames == 0)
-  throw smt2exception("invalid s-expression, unexpected ')'");
-  num_frames--;
-  unsigned spos = m_sexpr_frame_stack.back();
-  unsigned epos = m_sexpr_stack.size();
-  assert(epos >= spos);
-  unsigned num  = epos - spos;
-  if (num == 0)
-  throw smt2exception("invalid empty s-expression");
-  sexpr * r = m_ctx.sm().mk_composite(spos, m_sexpr_stack, line(),  pos());
-
-  m_sexpr_stack.erase(m_sexpr_stack.begin()+spos, m_sexpr_stack.end());
-
-  m_sexpr_stack.push_back(r);
-  m_sexpr_frame_stack.pop_back();
-  break;
-  }
-  case smt2scanner::SYMBOL_TOKEN:
-  m_sexpr_stack.push_back(m_ctx.sm().mk_symbol(curr_id(), line, pos));
-  break;
-  case smt2scanner::KEYWORD_TOKEN:
-  m_sexpr_stack.push_back(m_ctx.sm().mk_keyword(curr_id(), line, pos));
-  break;
-  case smt2scanner::STRING_TOKEN:
-  m_sexpr_stack.push_back(m_ctx.sm().mk_string(m_scanner.get_string(), line, pos));
-  break;
-  case smt2scanner::INT_TOKEN:
-  m_sexpr_stack.push_back(m_ctx.sm().mk_int_numeral(curr_numeral(), line, pos));
-  break;
-  case smt2scanner::FLOAT_TOKEN:
-  m_sexpr_stack.push_back(m_ctx.sm().mk_real_numeral(curr_numeral(), line, pos));
-  break;
-  case smt2scanner::BV_TOKEN:
-  m_sexpr_stack.push_back(m_ctx.sm().mk_bv_numeral(curr_numeral(), m_scanner.get_bv_size(), line, pos));
-  break;
-  case smt2scanner::EOF_TOKEN:
-  throw smt2exception("invalid s-expression, unexpected end of file");
-  break;
-  default:
-  throw smt2exception("invalid s-expression, unexpected input");
-  break;
-  }
-  next();
-  } while (num_frames > 0);
-  assert(m_sexpr_stack.size() == stack_pos + 1);
-
-  std::cout << "size: "  << m_sexpr_stack.size() << std::endl;
-  sexpr* sexp = m_sexpr_stack.back();
-  sexp->display(std::cout);
-  delete sexp;
-  }*/
 
 
 /**
@@ -242,7 +177,7 @@ bool smt2parser::check_var_exist(std::vector<z3::expr> &vec, z3::expr& var) {
  * check whether the $var_sym is in $vec
  * @param vec : var list
  * @param var_sym : maybe a variable
- * @return true: if $var in $vec, otherwise false
+ * @return index: if $var in $vec, otherwise -1
  */
 int smt2parser::check_var_exist(std::vector<z3::expr> &vec, z3::symbol& var_sym) {
         for (int i=0; i<vec.size(); i++) {
@@ -251,6 +186,114 @@ int smt2parser::check_var_exist(std::vector<z3::expr> &vec, z3::symbol& var_sym)
                 }
         }
         return -1;
+}
+
+/**
+ * check base rule (alpha = beta)
+ * @param base_rule : expr
+ *
+ */
+void smt2parser::check_base_rule(z3::expr &base_rule) {
+        if (!base_rule.is_app() || base_rule.decl().name().str() != "and") {
+                throw smt2exception("'and' is excepted in the base rule", line(), pos());
+        }
+        for (int i=0; i<base_rule.num_args()-1; i++) {
+                if (!base_rule.arg(i).is_app() ||
+                    (base_rule.arg(i).decl().name().str() != "tobool" && base_rule.arg(i).decl().name().str() != "=" && base_rule.arg(i).decl().name().str() != "distinct")) {
+                        throw smt2exception("'=' or 'distinct' is excepted in the base rule", line(), pos());
+                }
+        }
+}
+
+/**
+ * check recursive rule (exists (parameters) (data (ssep )))
+ * @param rec_rule : expr
+ * @return rule : if NO EXCEPTION
+ */
+pred_rule smt2parser::check_rec_rule(z3::expr &rec_rule, std::string f_name) {
+        // pars
+        if (!rec_rule.is_quantifier()) {
+                throw smt2exception("'exists' is excepted in the recursive rule", line(), pos());
+        }
+        z3::expr body = rec_rule.body();
+        if (!body.is_app() || body.decl().name().str() != "and") {
+                throw smt2exception("'and' is excepted in the recursive rule", line(), pos());
+        }
+        // 1. data
+        z3::expr_vector data_items(z3_ctx());
+
+        int i=0;
+        for (; i<body.num_args(); i++) {
+                assert(body.arg(i).is_app());
+                if (body.arg(i).decl().name().str() != "tobool") {
+                        data_items.push_back(body.arg(i));
+                } else {
+                        break;
+                }
+        }
+        if (i==body.num_args()) {
+                throw smt2exception("'tobool' is excepted in the recursive rule", line(), pos());
+        }
+
+        z3::expr data = mk_and(data_items);
+
+        z3::expr ssep = body.arg(i).arg(0);
+        if (ssep.arg(0).decl().name().str() != "pto") {
+                throw smt2exception("'pto' is excepted first in the 'ssep'");
+        }
+        // 2. pto
+        z3::expr pto = ssep.arg(0);
+        // 3. rec app
+        z3::expr_vector rec_apps(z3_ctx());
+        for (int i=1; i<ssep.num_args(); i++) {
+                if (ssep.arg(i).decl().name().str() == f_name) {
+                        // rec app
+                        rec_apps.push_back(ssep.arg(i));
+                } else {
+                        // non-rec app TODO.
+                }
+        }
+
+        pred_rule rule(data, pto, rec_apps);
+        return rule;
+}
+
+
+
+
+/**
+ * check the $body sat the predicate constraint
+ * (tospace (or (and ) (exists )))
+ * @param body : the define-fun body
+ * @return true : if sat
+ */
+void smt2parser::check_pred(z3::expr& body, predicate& pred) {
+        std::string f_name = pred.get_pred_name();
+        // TODO ..
+        // 1. check pars
+
+        // 2. check body
+        assert(body.is_app() && body.decl().name().str() == "tospace");
+        z3::expr exp_or = body.arg(0);
+        if (!exp_or.is_app() && exp_or.decl().name().str() !="or") {
+                throw smt2exception("(or ...) is excepted in define-fun body", line(), pos());
+        }
+        if (exp_or.num_args()<2) {
+                throw smt2exception("at least 2 rules is excepted in define-fun body", line(), pos());
+        }
+        z3::expr base_rule = exp_or.arg(0);
+        // 2.1 check base rule
+        check_base_rule(base_rule);
+
+        pred.add_base_rule(base_rule);
+
+        // 2.2 check recursive rules
+        for (int i=1; i<exp_or.num_args(); i++) {
+                // check recursive rule
+                z3::expr rule_exp = exp_or.arg(i);
+                pred_rule rule = check_rec_rule(rule_exp, f_name);
+                pred.add_rec_rule(rule);
+        }
 }
 
 
@@ -379,8 +422,10 @@ z3::expr smt2parser::make_user_def(z3::func_decl f, z3::expr_vector& args) {
                 }
                 if ( args[i].get_sort().to_string() != "Void" && f.domain(i).name() != args[i].get_sort().name()) {
                         // logger() << "domain: " << f.domain(i).name() << ", args: " << args[i].get_sort().name() << std::endl;
-                        std::string info = logger().string_format("invalid s-expression, for %s argument %d mismatch", f.name().str().c_str(), i);
-                        throw smt2exception(info, line(),  pos());
+                        if (!(f.domain(i).to_string() == "Real" && args[i].is_numeral())){
+                                std::string info = logger().string_format("invalid s-expression, for %s argument %d mismatch", f.name().str().c_str(), i);
+                                throw smt2exception(info, line(),  pos());
+                        }
                 }
         }
 
@@ -669,6 +714,16 @@ void smt2parser::parse_expr() {
         logger().log_out_ln("parse expr start.");
         unsigned stack_pos  = m_expr_stack.size();
         unsigned num_frames = 0;
+
+
+        /*
+        logger() << "varstack\n";
+        for (int i=0; i<m_sorted_var_stack.size(); i++) {
+                logger() << "var:"<<i<<" :" << m_sorted_var_stack[i] << std::endl;
+        }
+        logger() << "varstack\n";
+        */
+
         do {
                 next();
                 switch (curr()) {
@@ -781,6 +836,7 @@ void smt2parser::parse_expr() {
         assert(m_expr_stack.size() == stack_pos + 1);
 
         logger().log_format("expr stack size: %d\n", m_expr_stack.size());
+        logger().log_format("expr frame stack size: %d\n", m_expr_frame_stack.size());
         logger() << "the last expr:\n" << m_expr_stack.back() << std::endl;
         logger().log_out_ln("parse expr end.");
 }
@@ -1065,7 +1121,6 @@ void smt2parser::parse_define_fun() {
         logger() << "parse fun name: " << fun_name << std::endl;
 
         bool empty = parse_parameters();
-        //bool empty = false;
 
         if (empty) {
                 // error
@@ -1073,7 +1128,7 @@ void smt2parser::parse_define_fun() {
                 throw smt2exception(info, line(),  pos());
         }
 
-        //
+        // parse the parameters
         unsigned spos = m_var_frame_stack.back();
         unsigned epos = m_sorted_var_stack.size();
         unsigned num = epos - spos;
@@ -1101,20 +1156,78 @@ void smt2parser::parse_define_fun() {
 
         // parse body -> rules
         parse_expr();
+        // closed paren
+        next();
+        check_rparen("invalid define-fun, excepted ')'");
+
+        z3::expr body = m_expr_stack.back();
+        m_expr_stack.pop_back();
+
+        // new predicate TODO
+        // args, base_rule, rec_rules
+        z3::expr null(m_ctx.z3_context());
+
+        predicate pred(fun, args, null);
+        check_pred(body, pred);
+
+        m_ctx.add_predicate(pred);
+
+
+        // std::cout << pred << std::endl;
+
+
+        m_sorted_var_stack.erase(m_sorted_var_stack.begin()+spos, m_sorted_var_stack.end());
+        m_var_frame_stack.pop_back();
+        logger() << "parse define-fun end.";
+}
+
+/**
+ * parse (asssert formula)
+ *
+ */
+void smt2parser::parse_assert() {
+        logger() << "parse assert start.\n";
+
+        assert(curr_is_identifier());
+        assert(m_assert ==  curr_id());
+        parse_expr();
+
+        // TODO
+        z3::expr formula = m_expr_stack.back();
+        if (m_ctx.is_no_formula()) m_ctx.set_negf(formula);
+        else if (m_ctx.is_sat()) m_ctx.set_posf(formula);
+        else {
+                std::string info = "invalid assert, support at most 2 assertions.";
+                throw smt2exception(info, line(),  pos());
+        }
+
+        m_expr_stack.pop_back();
+
+        next();
+        check_rparen("invalid assert, excepted ')'");
+
+        logger() << "parse assert end.\n";
+}
+
+/**
+ * parse (check-sat)
+ */
+void smt2parser::parse_check_sat() {
+        assert(curr_is_identifier());
+        assert(m_check_sat ==  curr_id());
+
+        next();
+        check_rparen("invalid check-sat, excepted ')'");
+        logger() << "solve the sat ...\n";
+
+        treesolver sol(m_ctx);
+        sol.check_sat();
 }
 
 void smt2parser::parse_cmd() {
-        // std::cout <<"curr: " <<curr() << std::endl;
-
-//        logger().log_format("parse: %s", "parse_cmd");
-
-        next();
         check_lparen_next("invalid command, '(' expected.");
-
         check_identifier("invalid command, symbol expected");
         z3::symbol s = curr_id();
-
-        // std::cout << s;
 
         if (s == m_set_logic) {
                 parse_set_logic();
@@ -1136,27 +1249,24 @@ void smt2parser::parse_cmd() {
                 return;
         }
 
-        ///////////////////////////////////
-
         if (s == m_assert) {
-                // parse_assert();
-                std::cout << "assert \n ";
+                parse_assert();
                 return;
         }
 
         if (s == m_check_sat) {
-                // parse_check_sat();
+                parse_check_sat();
                 return;
         }
 
-
-
 }
 
+/**
+ * parse the file
+ */
 bool smt2parser::operator()() {
         m_num_bindings    = 0;
         bool found_errors = false;
-
         try {
                 scan_core();
         }
@@ -1182,10 +1292,14 @@ bool smt2parser::operator()() {
                                         throw smt2exception("invalid command, '(' expected");
                                         break;
                                 }
+                                next();
                         }
                 }
                 catch (smt2exception & ex) {
-                        error(line(),  pos(), ex.get_msg().c_str());
+                        // error(ex.get_msg().c_str());
+                        // std::cout << ex.get_msg() << std::endl;
+                        // break;
+                        throw ex;
                 }
         }
 }
@@ -1216,7 +1330,7 @@ void smt2parser::init_theory() {
         z3::symbol space_sym = z3_ctx().str_symbol("Space");
         z3::sort SP =  z3_ctx().uninterpreted_sort("Space");
 
-        // m_builtin_sort_table[bool_sym] = B; NO
+        // insert builtin sort
         m_builtin_sort_table.insert(std::pair<z3::symbol, std::pair<z3::sort, unsigned> >(bool_sym, std::pair<z3::sort, unsigned>(B, 0)));
         m_builtin_sort_table.insert(std::pair<z3::symbol, std::pair<z3::sort, unsigned> >(int_sym, std::pair<z3::sort, unsigned>(I, 0)));
         m_builtin_sort_table.insert(std::pair<z3::symbol, std::pair<z3::sort, unsigned> >(rat_sym, std::pair<z3::sort, unsigned>(R, 0)));
@@ -1224,14 +1338,9 @@ void smt2parser::init_theory() {
         m_builtin_sort_table.insert(std::pair<z3::symbol, std::pair<z3::sort, unsigned> >(field_sym, std::pair<z3::sort, unsigned>(F, 2)));
         m_builtin_sort_table.insert(std::pair<z3::symbol, std::pair<z3::sort, unsigned> >(set_ref_sym, std::pair<z3::sort, unsigned>(S, 1)));
         m_builtin_sort_table.insert(std::pair<z3::symbol, std::pair<z3::sort, unsigned> >(space_sym, std::pair<z3::sort, unsigned>(SP, 0)));
-        // m_builtin_sort_table.insert(std::pair<z3::symbol, z3::sort>(int_sym, I));
-        // m_builtin_sort_table.insert(std::pair<z3::symbol, z3::sort>(rat_sym, R));
-        // m_builtin_sort_table.insert(std::pair<z3::symbol, z3::sort>(void_sym, V));
-
 
         // built-in funs
 
-//        z3::symbol bool_sym = z3_ctx().str_symbol("Bool");
         z3::func_decl true_f = z3_ctx().function("true", 0, 0, B);
         z3::symbol true_s =  z3_ctx().str_symbol("true");
         z3::func_decl false_f = z3_ctx().function("false", 0, 0, B);

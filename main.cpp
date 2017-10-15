@@ -92,11 +92,32 @@ void test_parser() {
         }
 }
 
+void test() {
+        try {
+                fstream f("test3.smt");
+                z3::context ctx;
+                smt2context m_ctx(ctx, "log");
+                smt2parser parser(m_ctx, f);
+                parser();
+
+                predicate pred = m_ctx.get_pred(0);
+
+                std::cout << pred << std::endl;
+
+                // z3::expr negf = m_ctx.get_negf();
+
+                // std::cout << negf << std::endl;
+        } catch(const smt2exception& e) {
+                cout << e.get_msg() << endl;
+        }
+}
+
 int main(int argc, char *argv[])
 {
 
         // test_scanner();
-        test_parser();
+        // test_parser();
+        test();
 
 
 

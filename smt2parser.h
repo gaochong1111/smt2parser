@@ -1,36 +1,11 @@
 #ifndef SMT2PARSER_PRO_H
 #define SMT2PARSER_PRO_H
 
-#include <vector>
 #include <map>
-#include <z3++.h>
 #include <sstream>
 
 #include "smt2scanner.h"
-// #include "sexpr.h"
-/**
- * the recursive definition
- * func_decl
- * binding arguments (var env)
- * base_rule, rec_rules
- *
- */
-class predicate {
-
-};
-
-/**
- * pred_rule
- * binding arguments (var env)
- * data, pto, rec_app
- *
- */
-class pred_rule {
-
-};
-
-// fields: sort -> vars of fields [next]
-
+#include "predicate.h"
 
 class smt2parser {
 
@@ -154,7 +129,6 @@ public:
 
         smt2scanner::token curr() const { return m_curr; }
 
-        void check_next(smt2scanner::token t, char const * msg);
 
         bool sync_after_error() ;
 
@@ -173,6 +147,7 @@ public:
         z3::symbol const & curr_id() const { return m_scanner.get_id(); }
         z3::expr curr_numeral() const { return m_scanner.get_number(); }
 
+        void check_next(smt2scanner::token t, char const * msg);
         bool curr_is_lparen() const { return curr() == smt2scanner::LEFT_PAREN; }
         bool curr_is_rparen() const { return curr() == smt2scanner::RIGHT_PAREN; }
         bool curr_is_identifier() const { return curr() == smt2scanner::SYMBOL_TOKEN; }
@@ -183,10 +158,10 @@ public:
 
         void check_lparen_next(char const * msg) { check_next(smt2scanner::LEFT_PAREN, msg); }
         void check_rparen_next(char const * msg) { check_next(smt2scanner::RIGHT_PAREN, msg); }
-        void check_rparen(char const * msg) { if (!curr_is_rparen()) throw smt2exception(msg, m_scanner.get_line(), m_scanner.get_pos()); }
-        void check_identifier(char const * msg) { if (!curr_is_identifier()) throw smt2exception(msg, m_scanner.get_line(), m_scanner.get_pos()); }
-        void check_int(char const * msg) { if (!curr_is_int()) throw smt2exception(msg, m_scanner.get_line(), m_scanner.get_pos()); }
-        void check_int_or_float(char const * msg) { if (!curr_is_int() && !curr_is_float()) throw smt2exception(msg, m_scanner.get_line(), m_scanner.get_pos()); }
+        void check_rparen(char const * msg) { if (!curr_is_rparen()) throw smt2exception(msg, line(), pos()); }
+        void check_identifier(char const * msg) { if (!curr_is_identifier()) throw smt2exception(msg, line(), pos()); }
+        void check_int(char const * msg) { if (!curr_is_int()) throw smt2exception(msg, line(), pos()); }
+        void check_int_or_float(char const * msg) { if (!curr_is_int() && !curr_is_float()) throw smt2exception(msg, line(), pos()); }
 
 //        void parse_sexpr();
 
@@ -213,6 +188,10 @@ public:
         bool check_var_exist(std::vector<z3::expr>& vec, z3::expr& var);
         int check_var_exist(std::vector<z3::expr>& vec, z3::symbol& var_sym);
 
+        void check_base_rule(z3::expr& base_rule);
+        pred_rule check_rec_rule(z3::expr& rec_rule, std::string f);
+        void check_pred(z3::expr& body, predicate& pred);
+
 
         void parse_expr();
 
@@ -227,6 +206,10 @@ public:
         void parse_declare_sort();
 
         void parse_declare_fun();
+
+        void parse_assert();
+
+        void parse_check_sat();
 
         void parse_cmd();
 

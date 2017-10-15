@@ -8,4 +8,4 @@ GTAGS
 *.txt
 *.o
 
-scanner
+parser

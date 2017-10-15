@@ -3,6 +3,8 @@
 #---------------------------------------
 CXX=g++
 
+CXX_FLAGS= -std=c++11 -g
+
 LIB_DIR=/usr/local/lib
 Z3LIB_PATH=/usr/local/lib/libz3.so
 
@@ -12,21 +14,21 @@ DYN_RUN_LIB_FLAG = -Wl,-R$(LIB_DIR)
 #---------------------------------------
 # Files
 #---------------------------------------
-SRC = main.cpp smt2scanner.cpp smt2parser.cpp log.cpp
+SRC = main.cpp smt2scanner.cpp smt2parser.cpp log.cpp solver.cpp
 
-INC = smt2scanner.h smt2exception.h  smt2context.h  smt2parser.h log.h
+INC = smt2scanner.h smt2exception.h  smt2context.h  smt2parser.h log.h predicate.h solver.h
 #---------------------------------------
 # Rules
 #---------------------------------------
-all: scanner
+all: parser
 
-scanner:$(subst .cpp,.o,$(SRC))
-	$(CXX) -std=c++11 -g -o $@ $^ \
+parser:$(subst .cpp,.o,$(SRC))
+	$(CXX) $(CXX_FLAGS)  -o $@ $^ \
 	$(DYN_LINK_LIB_FLAG) \
 	$(DYN_RUN_LIB_FLAG)
 
 clean:
-	rm -f scanner *.o
+	rm -f parser *.o
 
 
 #---------------------------------------
@@ -38,4 +40,4 @@ clean:
 
 
 %.o: %.cpp $(INC)
-	$(CXX) -std=c++11 -g -c -o $@ $<
+	$(CXX)  $(CXX_FLAGS)  -c -o $@ $<
