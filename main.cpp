@@ -19,6 +19,8 @@ string token_str[] = { "NULL_TOKEN",
                        "FLOAT_TOKEN",
                        "EOF_TOKEN"};
 
+std::string file_name = "test.smt";
+
 
 void test_scanner() {
         try {
@@ -51,7 +53,7 @@ void test_scanner() {
 
 void test_parser() {
         try {
-                fstream f("test.smt");
+                fstream f(file_name);
 
                 // sexpr_manager sm;
                 z3::context ctx;
@@ -94,7 +96,7 @@ void test_parser() {
 
 void test() {
         try {
-                fstream f("test3.smt");
+                fstream f(file_name);
                 z3::context ctx;
                 smt2context m_ctx(ctx, "log");
                 smt2parser parser(m_ctx, f);
@@ -102,9 +104,9 @@ void test() {
 
                 predicate pred = m_ctx.get_pred(0);
 
-                std::cout << pred << std::endl;
+                // std::cout << pred << std::endl;
 
-                // z3::expr negf = m_ctx.get_negf();
+                z3::expr negf = m_ctx.get_negf();
 
                 // std::cout << negf << std::endl;
         } catch(const smt2exception& e) {
@@ -114,6 +116,19 @@ void test() {
 
 int main(int argc, char *argv[])
 {
+        if (argc>0) {
+                int i=1;
+                for (; i<argc; i++) {
+                        std::string op = argv[i];
+                        if (op == "-f" && i+1<argc) {
+                                file_name = argv[i+1];
+                                i++;
+                        }
+                        std::cout << "file_name: " << file_name << std::endl;
+                        // std::cout << "arg" << i << " : " << op << std::endl;
+                }
+        }
+
 
         // test_scanner();
         // test_parser();

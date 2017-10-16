@@ -1,18 +1,12 @@
 #ifndef SOLVER_H
 #define SOLVER_H
 
-#include <vector>
-#include <set>
 #include "smt2context.h"
 #include "smt2exception.h"
+#include "csltp_order_graph.h"
 
 
-class exprcomp {
-public:
-        bool operator() (const z3::expr& lhs, const z3::expr& rhs) const {
-                return lhs.hash() < rhs.hash();
-        }
-};
+
 
 class treechecker {
 private:
@@ -40,16 +34,40 @@ class treesolver {
 private:
         smt2context& m_ctx;
         z3::expr_vector delta_ge1_predicates; // phi^{>=1}_P(\alpha; \beta), corresponding to preds_array
+        z3::expr_vector new_bools;
 
 private:
         void get_constants(z3::expr const& exp, std::set<z3::expr, exprcomp>& vec);
         void get_constants(predicate& pred, std::set<z3::expr, exprcomp>& vec);
+        void get_alpha_beta(predicate& pred, z3::expr_vector& alpha, z3::expr_vector& beta);
+        void get_alpha_beta(predicate& pred, std::vector<Vertex>& alpha, std::vector<Vertex>& beta);
+        void get_gamma_delta_epsilon(pred_rule& rule, z3::expr_vector& gamma, z3::expr_vector& delta, z3::expr_vector& epsilon);
+        void get_gamma_delta_epsilon(pred_rule& rule, std::vector<Vertex>& gamma, std::vector<Vertex>& delta, std::vector<Vertex>& epsilon);
+        z3::expr_vector get_x_h(pred_rule& rule);
+
+        void get_data_space(z3::expr& formula, z3::expr& data, z3::expr& space);
+        int index_of_pred(std::string& pred_name);
+
+        z3::expr abs_space(z3::expr& space);
+        z3::expr abs_phi_star();
+
+        void expr2graph(z3::expr& exp, OrderGraph& og);
+        void exp2vertex(z3::expr_vector& exp_vec, std::vector<Vertex>& ver_vec);
+        void exp2vertex(std::set<z3::expr, exprcomp>& exp_set, std::vector<Vertex>& ver_vec);
+        void vector2set(std::vector<Vertex>& ver_vec, std::set<Vertex>& ver_set);
+        std::string get_exp_name(z3::expr exp);
+        std::string simplify_var_name(std::string str);
+        z3::expr vertex2exp(Vertex v);
+        z3::expr edge2exp(Edge e);
+        z3::expr graph2exp(OrderGraph& og);
+
 public:
-treesolver(smt2context& ctx):m_ctx(ctx), delta_ge1_predicates(ctx.z3_context()) {
+treesolver(smt2context& ctx):m_ctx(ctx), delta_ge1_predicates(ctx.z3_context()), new_bools(ctx.z3_context()) {
         }
 
         smt2context& get_ctx() {return m_ctx;}
         z3::context& z3_ctx() {return m_ctx.z3_context();}
+        Log& logger() {return m_ctx.logger();}
 
         bool check_preds();
 
@@ -58,6 +76,8 @@ treesolver(smt2context& ctx):m_ctx(ctx), delta_ge1_predicates(ctx.z3_context()) 
 
         z3::expr compute_delta_phi_pd(predicate& pred);
         z3::expr compute_delta_ge1_rule(pred_rule& rule, predicate& pred, z3::expr& delta_ge1_p_abs);
+
+        OrderGraphSet lfp(predicate& pred);
 
         bool check_sat();
 

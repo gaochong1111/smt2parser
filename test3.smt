@@ -26,13 +26,29 @@
             (and
                 (< ?y2 ?u)
                 (< ?u ?x2)
-                (< ?z -1)
+                (= ?z 0)
                
                 (tobool
                     (ssep
-                        (pto ?E (sref (ref left ?Y)  (ref right ?X)  (ref data ?u) (ref color ?z)))
+                        (pto ?E (sref (ref left ?X)  (ref right ?Y)  (ref data ?u) (ref color ?z)))
                         (rbth ?X ?x ?y2 1 ?F ?x1 ?y1 ?z1)
                         (rbth ?Y ?x2 ?y 1 nil ?y ?y 1)
+                    )
+                )
+            )
+        )
+
+        (exists ((?X RBth_t) (?Y RBth_t) (?u Rat) (?x2 Rat) (?y2 Rat))
+            (and
+                (< ?y2 ?u)
+                (< ?u ?x2)
+                (= ?z 0)
+               
+                (tobool
+                    (ssep
+                        (pto ?E (sref (ref left ?X)  (ref right ?Y)  (ref data ?u) (ref color ?z)))
+                        (rbth ?X ?x ?y2 1 nil ?x ?x 1)
+                        (rbth ?Y ?x2 ?y 1 ?F ?x1 ?y1 ?z1)
                     )
                 )
             )
@@ -40,6 +56,7 @@
     )
 )
 )
+
 
 
 ;; (define-fun f1 ( (?E RBth_t)  (?x Rat)  (?h Int) (?F RBth_t)  (?x1 Rat) (?h1 Int))  Space (tospace

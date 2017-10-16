@@ -4,6 +4,19 @@
 #include <z3++.h>
 #include <iostream>
 #include <string>
+#include <set>
+#include <vector>
+
+/**
+ * the expr comparator
+ */
+class exprcomp {
+public:
+        bool operator() (const z3::expr& lhs, const z3::expr& rhs) const {
+                return lhs.hash() < rhs.hash();
+        }
+};
+
 /**
  * pred_rule
  * data, pto, rec_app
@@ -14,6 +27,18 @@ private:
         z3::expr m_data;
         z3::expr m_pto;
         z3::expr_vector m_rec_apps;
+        void get_x_h(z3::expr exp, std::set<z3::expr, exprcomp>& x_h) {
+                if (exp.is_app()) {
+                        for (int i=0; i<exp.num_args(); i++) {
+                                get_x_h(exp.arg(i), x_h);
+                        }
+                } else {
+                        if (exp.is_var()) {
+                                x_h.insert(exp);
+                        }
+                }
+        }
+
 public:
 pred_rule(z3::expr data, z3::expr pto, z3::expr_vector rec_apps)
         :m_data(data), m_pto(pto), m_rec_apps(rec_apps) {
@@ -22,6 +47,23 @@ pred_rule(z3::expr data, z3::expr pto, z3::expr_vector rec_apps)
         z3::expr get_data() {return m_data;}
         z3::expr get_pto() {return m_pto;}
         z3::expr_vector get_rec_apps() {return m_rec_apps;}
+        /**
+         * get exists args (x, h)
+         * @param x_h_vec : the result vector
+         */
+        void get_x_h(z3::expr_vector& x_h_vec) {
+                std::set<z3::expr, exprcomp> x_h;
+                get_x_h(m_data, x_h);
+                get_x_h(m_pto, x_h);
+                for (int i=0; i<m_rec_apps.size(); i++) {
+                        get_x_h(m_rec_apps[i], x_h);
+                }
+                for (auto exp : x_h) {
+                        x_h_vec.push_back(exp);
+                }
+        }
+
+
 
         bool is_tree_rule() {
                 return m_rec_apps.size() == 2;
@@ -33,25 +75,6 @@ pred_rule(z3::expr data, z3::expr pto, z3::expr_vector rec_apps)
                 out << "m_rec_apps: " << pr.m_rec_apps << std::endl;
                 return out;
         }
-};
-
-/**
- * tree pred binding info
- */
-class tree_binding {
-public:
-        z3::expr_vector m_constants;
-        z3::expr_vector m_alpha;
-        z3::expr_vector m_beta;
-        z3::expr_vector m_gamma;
-        z3::expr_vector m_delta;
-        z3::expr_vector m_epsilon;
-tree_binding(z3::expr_vector constants, z3::expr_vector alpha,  z3::expr_vector beta,  z3::expr_vector gamma, z3::expr_vector delta, z3::expr_vector epsilon):m_constants(constants),
-                m_alpha(alpha),
-                m_beta(beta),
-                m_gamma(gamma),
-                m_delta(delta),
-                m_epsilon(epsilon){}
 };
 
 
@@ -81,7 +104,10 @@ predicate(z3::func_decl fun, z3::expr_vector pars, z3::expr base_rule)
                 m_rec_rules.push_back(pr);
         }
 
+        z3::expr get_base_rule(){return m_base_rule;}
+
         int rec_rule_size() {return m_rec_rules.size();}
+
 
         pred_rule get_rule(int i) {
                 assert(i < m_rec_rules.size());

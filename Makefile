@@ -14,9 +14,9 @@ DYN_RUN_LIB_FLAG = -Wl,-R$(LIB_DIR)
 #---------------------------------------
 # Files
 #---------------------------------------
-SRC = main.cpp smt2scanner.cpp smt2parser.cpp log.cpp solver.cpp
+SRC = main.cpp smt2scanner.cpp smt2parser.cpp log.cpp solver.cpp csltp_order_graph.cpp
 
-INC = smt2scanner.h smt2exception.h  smt2context.h  smt2parser.h log.h predicate.h solver.h
+INC = smt2scanner.h smt2exception.h  smt2context.h  smt2parser.h log.h predicate.h solver.h csltp_order_graph.h
 #---------------------------------------
 # Rules
 #---------------------------------------
@@ -28,7 +28,7 @@ parser:$(subst .cpp,.o,$(SRC))
 	$(DYN_RUN_LIB_FLAG)
 
 clean:
-	rm -f parser *.o
+	rm -f parser *.o *.dot *.txt
 
 
 #---------------------------------------
