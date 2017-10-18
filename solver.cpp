@@ -18,11 +18,11 @@ bool treesolver::check_sat() {
         struct timeval tvBegin, tvEnd, tvDiff;
         // 2. check_sat
         logger() << "check sat" << std::endl;
+        gettimeofday (&tvBegin, NULL);
         // 2.1 compute_all_delta_ge1_p
         compute_all_delta_ge1_p();
         // delta_ge1_predicates.push_back(z3_ctx().bool_val(true));
         // 2.2 formula -> abs
-        gettimeofday (&tvBegin, NULL);
         if (m_ctx.is_sat()) {
                 logger() << "sat problem: " << std::endl;
                 z3::expr formula = m_ctx.get_negf();
