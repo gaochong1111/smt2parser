@@ -1,5 +1,5 @@
 #include "solver.h"
-
+#include <sys/time.h>
 
 /**
  *###################### solver ####################################3
@@ -15,12 +15,14 @@ bool treesolver::check_sat() {
         // 1. check_preds
         // m_ctx.logger() << "check preds" << std::endl;
         check_preds();
+        struct timeval tvBegin, tvEnd, tvDiff;
         // 2. check_sat
         logger() << "check sat" << std::endl;
         // 2.1 compute_all_delta_ge1_p
         compute_all_delta_ge1_p();
         // delta_ge1_predicates.push_back(z3_ctx().bool_val(true));
         // 2.2 formula -> abs
+        gettimeofday (&tvBegin, NULL);
         if (m_ctx.is_sat()) {
                 logger() << "sat problem: " << std::endl;
                 z3::expr formula = m_ctx.get_negf();
@@ -38,7 +40,7 @@ bool treesolver::check_sat() {
                 // 2.2.3 sep (\phi_star)
                 f_abs = f_abs && abs_phi_star();
 
-                std::cout << "f_abs: " << f_abs << std::endl;
+                // std::cout << "f_abs: " << f_abs << std::endl;
                 z3::solver s(z3_ctx());
                 s.add(f_abs);
                 z3::check_result result = s.check();
@@ -47,6 +49,14 @@ bool treesolver::check_sat() {
                 //        std::cout << "model: " << s.get_model() << std::endl;
                 // }
         }
+        // time difference
+        gettimeofday (&tvEnd, NULL);
+        long int diff = (tvEnd.tv_usec + 1000000 * tvEnd.tv_sec)
+                - (tvBegin.tv_usec + 1000000 * tvBegin.tv_sec);
+        tvDiff.tv_sec = diff / 1000000;
+        tvDiff.tv_usec = diff % 1000000;
+        std::string info = logger().string_format("\nTotal time (sec): %ld.%06ld\n\n", tvDiff.tv_sec, tvDiff.tv_usec);
+        std::cout << info;
         return true;
 }
 

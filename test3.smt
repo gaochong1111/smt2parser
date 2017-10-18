@@ -38,6 +38,81 @@
             )
         )
 
+        (exists ((?X RBth_t) (?Y RBth_t) (?u Rat) (?x2 Rat) (?y2 Rat) (?z2 Rat) (?z3 Rat))
+            (and
+                (< ?y2 ?u)
+                (< ?u ?x2)
+                (= ?z 1)
+                (= ?z2 0)
+                (= ?z3 0)
+               
+                (tobool
+                    (ssep
+                        (pto ?E (sref (ref left ?X)  (ref right ?Y)  (ref data ?u) (ref color ?z)))
+                        (rbth ?X ?x ?y2 ?z2 ?F ?x1 ?y1 ?z1)
+                        (rbth ?Y ?x2 ?y ?z3 nil ?y ?y 1)
+                    )
+                )
+            )
+        )
+
+        (exists ((?X RBth_t) (?Y RBth_t) (?u Rat) (?x2 Rat) (?y2 Rat) (?z2 Rat) (?z3 Rat))
+            (and
+                (< ?y2 ?u)
+                (< ?u ?x2)
+                (= ?z 1)
+                (= ?z2 0)
+                (= ?z3 1)
+               
+                (tobool
+                    (ssep
+                        (pto ?E (sref (ref left ?X)  (ref right ?Y)  (ref data ?u) (ref color ?z)))
+                        (rbth ?X ?x ?y2 ?z2 ?F ?x1 ?y1 ?z1)
+                        (rbth ?Y ?x2 ?y ?z3 nil ?y ?y 1)
+                    )
+                )
+            )
+        )
+
+        (exists ((?X RBth_t) (?Y RBth_t) (?u Rat) (?x2 Rat) (?y2 Rat) (?z2 Rat) (?z3 Rat))
+            (and
+                (< ?y2 ?u)
+                (< ?u ?x2)
+                (= ?z 1)
+                (= ?z2 1)
+                (= ?z3 0)
+               
+                (tobool
+                    (ssep
+                        (pto ?E (sref (ref left ?X)  (ref right ?Y)  (ref data ?u) (ref color ?z)))
+                        (rbth ?X ?x ?y2 ?z2 ?F ?x1 ?y1 ?z1)
+                        (rbth ?Y ?x2 ?y ?z3 nil ?y ?y 1)
+                    )
+                )
+            )
+        )
+
+        (exists ((?X RBth_t) (?Y RBth_t) (?u Rat) (?x2 Rat) (?y2 Rat) (?z2 Rat) (?z3 Rat))
+            (and
+                (< ?y2 ?u)
+                (< ?u ?x2)
+                (= ?z 1)
+                (= ?z2 1)
+                (= ?z3 1)
+               
+                (tobool
+                    (ssep
+                        (pto ?E (sref (ref left ?X)  (ref right ?Y)  (ref data ?u) (ref color ?z)))
+                        (rbth ?X ?x ?y2 ?z2 ?F ?x1 ?y1 ?z1)
+                        (rbth ?Y ?x2 ?y ?z3 nil ?y ?y 1)
+                    )
+                )
+            )
+        )
+
+
+
+
         (exists ((?X RBth_t) (?Y RBth_t) (?u Rat) (?x2 Rat) (?y2 Rat))
             (and
                 (< ?y2 ?u)
@@ -53,6 +128,28 @@
                 )
             )
         )
+
+        (exists ((?X RBth_t) (?Y RBth_t) (?u Rat) (?x2 Rat) (?y2 Rat) (?z2 Rat) (?z3 Rat))
+            (and
+                (< ?y2 ?u)
+                (< ?u ?x2)
+                (= ?z 1)
+                (= ?z2 0)
+                (= ?z3 0)
+               
+                (tobool
+                    (ssep
+                        (pto ?E (sref (ref left ?X)  (ref right ?Y)  (ref data ?u) (ref color ?z)))
+                        (rbth ?X ?x ?y2 1 nil ?x ?x 1)
+                        (rbth ?Y ?x2 ?y 1 ?F ?x1 ?y1 ?z1)
+                    )
+                )
+            )
+        )
+
+
+
+
     )
 )
 )
