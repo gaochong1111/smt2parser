@@ -1,32 +1,205 @@
 #include "solver.h"
 #include <sys/time.h>
 
+
 /**
  *###################### solver ####################################3
  */
+solver::solve() {
+        // 1. check_preds
+        check_preds();
+        struct timeval tvBegin, tvEnd, tvDiff;
+        // 2. start timer
+        gettimeofday (&tvBegin, NULL);
 
+        // 3. check sat or entl
+        if (m_ctx.is_sat()) {
+                 std::cout << "Checking satisfiability."
+                 z3::check_result result = check_sat();
+                 std::cout << "The result: " << result << std::endl;
+        } else {
+                z3::check_result result = check_entl();
+                std::cout << "The result: " << result << std::endl;
+        }
+        // 4. end timers
+        gettimeofday (&tvEnd, NULL);
+        long int diff = (tvEnd.tv_usec + 1000000 * tvEnd.tv_sec)
+                - (tvBegin.tv_usec + 1000000 * tvBegin.tv_sec);
+        tvDiff.tv_sec = diff / 1000000;
+        tvDiff.tv_usec = diff % 1000000;
+        std::string info = logger().string_format("\nTotal time (sec): %ld.%06ld\n\n", tvDiff.tv_sec, tvDiff.tv_usec);
+        std::cout << info;
+}
+
+/**
+ * get data and space part by formula
+ * @param formula : the formula
+ * @param data : the result data part (translate to abstraction)
+ * @param space : the result space part
+ */
+void solver::get_data_space(z3::expr &formula, z3::expr &data, z3::expr &space) {
+        z3::expr_vector data_items(z3_ctx());
+        int i=0;
+        for (; i<formula.num_args(); i++) {
+                if (formula.arg(i).is_app() && formula.arg(i).decl().name().str() == "tobool") {
+                        break;
+                }
+                // (= Z1 Z2) or (distinct Z1 Z2) ==> abs
+                if (formula.arg(i).num_args()==2 && formula.arg(i).arg(0).get_sort().sort_kind() == Z3_UNINTERPRETED_SORT) {
+                        z3::expr item = formula.arg(i);
+                        z3::expr z1_int = z3_ctx().int_const(item.arg(0).to_string().c_str());
+                        z3::expr z2_int = z3_ctx().int_const(item.arg(1).to_string().c_str());
+                        if (item.decl().name().str() == "distinct") {
+                                data_items.push_back(z1_int != z2_int);
+                        } else {
+                                data_items.push_back(z1_int == z2_int);
+                        }
+                } else {
+                        data_items.push_back(formula.arg(i));
+                }
+        }
+        data = mk_and(data_items);
+        if (i != formula.num_args()) {
+                space = formula.arg(i).arg(0);
+        }
+}
+
+/**
+ * index of the predicate in preds
+ * @param: pred_name : the predicate name
+ * @return: the index, if exist
+ *          -1       , otherwise
+ */
+int solver::index_of_pred(std::string &pred_name) {
+        for (int i=0; i<m_ctx.pred_size(); i++) {
+                if (pred_name == m_ctx.get_pred(i).get_pred_name()) {
+                        return i;
+                }
+        }
+        return -1;
+}
+
+/**
+ * compute abstraction of space part
+ * @param space : the space part
+ * @return the abstraction of space part
+ */
+z3::expr solver::abs_space(z3::expr &space) {
+        // 1.space atoms -> abs (\phi_sigma)
+        z3::expr f_abs(z3_ctx());
+        for (int i=0; i<space.num_args(); i++) {
+                //1.1 fetch atom
+                z3::expr atom = space.arg(i);
+                std::string source = atom.arg(0).to_string();
+                std::string new_name = m_ctx.logger().string_format("[%s,%d]", source.c_str(), i);
+                // 1.2 introduce new boolean var
+                z3::expr source_bool = z3_ctx().bool_const(new_name.c_str());
+                new_bools.push_back(source_bool);
+                z3::expr source_int = z3_ctx().int_const(source.c_str());
+
+                z3::expr atom_f(z3_ctx());
+                if (atom.decl().name().str() == "pto") {
+                        // 1.3 pto atom
+                        atom_f = (source_bool && source_int > 0);
+                } else {
+                        // 1.3 predicate atom
+                        int size = atom.num_args();
+                        std::string dest = atom.arg(size/2).to_string();
+                        z3::expr dest_int = z3_ctx().int_const(dest.c_str());
+
+                        // supposing atom is empty
+                        z3::expr or_1(z3_ctx());
+                        or_1 = !source_bool && (source_int == dest_int);
+                        for (int j=1; j<size/2;j++) {
+                                or_1 = or_1 && (atom.arg(j)==atom.arg(j+size/2));
+                        }
+
+                        // supposing atom is not emtpy
+                        z3::expr or_2(z3_ctx());
+                        or_2 = source_bool && source_int>0;
+
+                        // 1.4 substitute formal args by actual args
+                        std::string pred_name = atom.decl().name().str();
+                        int index = index_of_pred(pred_name);
+                        z3::expr phi_pd = delta_ge1_predicates[index];
+                        z3::expr_vector f_args = m_ctx.get_pred(index).get_pars();
+                        z3::expr_vector a_args(z3_ctx());
+                        for (int i=0; i<atom.num_args(); i++) {
+                                a_args.push_back(atom.arg(i));
+                        }
+                        z3::expr pred_abs = phi_pd.substitute(f_args, a_args);
+                        or_2 = or_2 && pred_abs;
+
+                        atom_f = or_1 || or_2;
+                }
+                // 1.5 add atom_f to f_abs
+                if (Z3_ast(f_abs) == 0) {
+                        f_abs = atom_f;
+                } else {
+                        f_abs = f_abs && atom_f;
+                }
+        }
+        return f_abs;
+}
+
+/**
+ * compute phi_star by new_bools
+ * @return the phi_star
+ */
+z3::expr solver::abs_phi_star() {
+        z3::expr phi_star(z3_ctx());
+        // phi_star
+        for (int i=0; i<new_bools.size(); i++) {
+                for (int j=i+1; j<new_bools.size(); j++) {
+                        std::string b1_name = new_bools[i].to_string();
+                        std::string b2_name = new_bools[j].to_string();
+                        int i1 = b1_name.find(",");
+                        int i2 = b2_name.find(",");
+                        std::string z1_name = b1_name.substr(2, i1-2);
+                        std::string z1_i = b1_name.substr(i1+1, b1_name.length()-i1-3);
+                        std::string z2_name = b2_name.substr(2, i2-2);
+                        std::string z2_i = b2_name.substr(i2+1, b2_name.length()-i2-3);
+
+                        if (z1_i != z2_i) {
+                                // add imply atom
+                                z3::expr imply = implies((z3_ctx().int_const(z1_name.c_str()) == z3_ctx().int_const(z2_name.c_str()) && new_bools[i]), !new_bools[j]);
+                                if (Z3_ast(phi_star) == 0) {
+                                        phi_star = imply;
+                                } else {
+                                        phi_star = phi_star && imply;
+                                }
+                        }
+                }
+        }
+        return phi_star;
+}
+
+
+
+/**
+ *###################### treesolver ####################################3
+ */
 /**
  * check sat, negf in m_ctx
  * or check entl, negf |= posf
- * @return true, if formula is sat
- *         false, otherwise
+ * @return z3::check_result
  */
-bool treesolver::check_sat() {
+z3::check_result treesolver::check_sat() {
         // 1. check_preds
         // m_ctx.logger() << "check preds" << std::endl;
-        check_preds();
-        struct timeval tvBegin, tvEnd, tvDiff;
+        // check_preds();
+        // struct timeval tvBegin, tvEnd, tvDiff;
         // 2. check_sat
-        logger() << "check sat" << std::endl;
-        gettimeofday (&tvBegin, NULL);
+        // logger() << "check sat" << std::endl;
+        // gettimeofday (&tvBegin, NULL);
         // 2.1 compute_all_delta_ge1_p
         compute_all_delta_ge1_p();
         // delta_ge1_predicates.push_back(z3_ctx().bool_val(true));
         // 2.2 formula -> abs
-        if (m_ctx.is_sat()) {
+        // if (m_ctx.is_sat()) {
                 logger() << "sat problem: " << std::endl;
                 z3::expr formula = m_ctx.get_negf();
-                logger() << "the formula: " << formula << std::endl;
+                // logger() << "the formula: " << formula << std::endl;
                 // 2.2.1 formula -> (delta \and sigma)
                 z3::expr data(z3_ctx());
                 z3::expr space(z3_ctx());
@@ -48,22 +221,37 @@ bool treesolver::check_sat() {
                 // if (result == z3::check_result::sat) {
                 //        std::cout << "model: " << s.get_model() << std::endl;
                 // }
-        }
+        // }
         // time difference
-        gettimeofday (&tvEnd, NULL);
-        long int diff = (tvEnd.tv_usec + 1000000 * tvEnd.tv_sec)
-                - (tvBegin.tv_usec + 1000000 * tvBegin.tv_sec);
-        tvDiff.tv_sec = diff / 1000000;
-        tvDiff.tv_usec = diff % 1000000;
-        std::string info = logger().string_format("\nTotal time (sec): %ld.%06ld\n\n", tvDiff.tv_sec, tvDiff.tv_usec);
-        std::cout << info;
-        return true;
+        // gettimeofday (&tvEnd, NULL);
+        // long int diff = (tvEnd.tv_usec + 1000000 * tvEnd.tv_sec)
+                // - (tvBegin.tv_usec + 1000000 * tvBegin.tv_sec);
+        // tvDiff.tv_sec = diff / 1000000;
+        // tvDiff.tv_usec = diff % 1000000;
+        // std::string info = logger().string_format("\nTotal time (sec): %ld.%06ld\n\n", tvDiff.tv_sec, tvDiff.tv_usec);
+        // std::cout << info;
+        return result;
+}
+
+
+/**
+ * check sat, negf in m_ctx
+ * or check entl, negf |= posf
+ * @return z3::check_result
+ */
+z3::check_result treesolver::check_entl() {
+	// TODO ....
+	z3::solver s(z3_ctx());
+	z3::expr f_abs = z3_ctx().bool_val(true);
+    s.add(f_abs);
+    z3::check_result result = s.check();
+	return result;
 }
 
 /**
  * check whether all predicate definitions are corresponding to userdef constraints
  */
-bool treesolver::check_preds() {
+void treesolver::check_preds() {
         for (int i=0; i<m_ctx.pred_size(); i++) {
                 predicate pred = m_ctx.get_pred(i);
                 if (pred.is_tree()) {
@@ -400,148 +588,6 @@ z3::expr_vector treesolver::get_x_h(pred_rule &rule) {
         return x_h_const;
 }
 
-/**
- * get data and space part by formula
- * @param formula : the formula
- * @param data : the result data part (translate to abstraction)
- * @param space : the result space part
- */
-void treesolver::get_data_space(z3::expr &formula, z3::expr &data, z3::expr &space) {
-        z3::expr_vector data_items(z3_ctx());
-        int i=0;
-        for (; i<formula.num_args(); i++) {
-                if (formula.arg(i).is_app() && formula.arg(i).decl().name().str() == "tobool") {
-                        break;
-                }
-                // (= Z1 Z2) or (distinct Z1 Z2) ==> abs
-                if (formula.arg(i).num_args()==2 && formula.arg(i).arg(0).get_sort().sort_kind() == Z3_UNINTERPRETED_SORT) {
-                        z3::expr item = formula.arg(i);
-                        z3::expr z1_int = z3_ctx().int_const(item.arg(0).to_string().c_str());
-                        z3::expr z2_int = z3_ctx().int_const(item.arg(1).to_string().c_str());
-                        if (item.decl().name().str() == "distinct") {
-                                data_items.push_back(z1_int != z2_int);
-                        } else {
-                                data_items.push_back(z1_int == z2_int);
-                        }
-                } else {
-                        data_items.push_back(formula.arg(i));
-                }
-        }
-        data = mk_and(data_items);
-        if (i != formula.num_args()) {
-                space = formula.arg(i).arg(0);
-        }
-}
-
-/**
- * index of the predicate in preds
- * @param: pred_name : the predicate name
- * @return: the index, if exist
- *          -1       , otherwise
- */
-int treesolver::index_of_pred(std::string &pred_name) {
-        for (int i=0; i<m_ctx.pred_size(); i++) {
-                if (pred_name == m_ctx.get_pred(i).get_pred_name()) {
-                        return i;
-                }
-        }
-        return -1;
-}
-
-/**
- * compute abstraction of space part
- * @param space : the space part
- * @return the abstraction of space part
- */
-z3::expr treesolver::abs_space(z3::expr &space) {
-        // 1.space atoms -> abs (\phi_sigma)
-        z3::expr f_abs(z3_ctx());
-        for (int i=0; i<space.num_args(); i++) {
-                //1.1 fetch atom
-                z3::expr atom = space.arg(i);
-                std::string source = atom.arg(0).to_string();
-                std::string new_name = m_ctx.logger().string_format("[%s,%d]", source.c_str(), i);
-                // 1.2 introduce new boolean var
-                z3::expr source_bool = z3_ctx().bool_const(new_name.c_str());
-                new_bools.push_back(source_bool);
-                z3::expr source_int = z3_ctx().int_const(source.c_str());
-
-                z3::expr atom_f(z3_ctx());
-                if (atom.decl().name().str() == "pto") {
-                        // 1.3 pto atom
-                        atom_f = (source_bool && source_int > 0);
-                } else {
-                        // 1.3 predicate atom
-                        int size = atom.num_args();
-                        std::string dest = atom.arg(size/2).to_string();
-                        z3::expr dest_int = z3_ctx().int_const(dest.c_str());
-
-                        // supposing atom is empty
-                        z3::expr or_1(z3_ctx());
-                        or_1 = !source_bool && (source_int == dest_int);
-                        for (int j=1; j<size/2;j++) {
-                                or_1 = or_1 && (atom.arg(j)==atom.arg(j+size/2));
-                        }
-
-                        // supposing atom is not emtpy
-                        z3::expr or_2(z3_ctx());
-                        or_2 = source_bool && source_int>0;
-
-                        // 1.4 substitute formal args by actual args
-                        std::string pred_name = atom.decl().name().str();
-                        int index = index_of_pred(pred_name);
-                        z3::expr phi_pd = delta_ge1_predicates[index];
-                        z3::expr_vector f_args = m_ctx.get_pred(index).get_pars();
-                        z3::expr_vector a_args(z3_ctx());
-                        for (int i=0; i<atom.num_args(); i++) {
-                                a_args.push_back(atom.arg(i));
-                        }
-                        z3::expr pred_abs = phi_pd.substitute(f_args, a_args);
-                        or_2 = or_2 && pred_abs;
-
-                        atom_f = or_1 || or_2;
-                }
-                // 1.5 add atom_f to f_abs
-                if (Z3_ast(f_abs) == 0) {
-                        f_abs = atom_f;
-                } else {
-                        f_abs = f_abs && atom_f;
-                }
-        }
-        return f_abs;
-}
-
-/**
- * compute phi_star by new_bools
- * @return the phi_star
- */
-z3::expr treesolver::abs_phi_star() {
-        z3::expr phi_star(z3_ctx());
-        // phi_star
-        for (int i=0; i<new_bools.size(); i++) {
-                for (int j=i+1; j<new_bools.size(); j++) {
-                        std::string b1_name = new_bools[i].to_string();
-                        std::string b2_name = new_bools[j].to_string();
-                        int i1 = b1_name.find(",");
-                        int i2 = b2_name.find(",");
-                        std::string z1_name = b1_name.substr(2, i1-2);
-                        std::string z1_i = b1_name.substr(i1+1, b1_name.length()-i1-3);
-                        std::string z2_name = b2_name.substr(2, i2-2);
-                        std::string z2_i = b2_name.substr(i2+1, b2_name.length()-i2-3);
-
-                        if (z1_i != z2_i) {
-                                // add imply atom
-                                z3::expr imply = implies((z3_ctx().int_const(z1_name.c_str()) == z3_ctx().int_const(z2_name.c_str()) && new_bools[i]), !new_bools[j]);
-                                if (Z3_ast(phi_star) == 0) {
-                                        phi_star = imply;
-                                } else {
-                                        phi_star = phi_star && imply;
-                                }
-                        }
-                }
-        }
-        return phi_star;
-}
 
 /**
  * expr to OrderGraph
@@ -709,9 +755,38 @@ z3::expr treesolver::graph2exp(OrderGraph &og) {
 
 
 /**
+ *###################### checker ####################################3
+ */
+/**
+ * check the expr whether numberal
+ * param: $x is the expr
+ * return: true, if $x is numeral
+ */
+bool checker::is_numeral(z3::expr x) {
+        if (x.is_numeral()) return true;
+        if (x.is_app()
+            && (x.decl().name().str() == "to_real" || x.decl().name().str() == "to_int")
+            && is_numeral(x.arg(0))) return true;
+        return false;
+}
+
+
+/**
+ * union two expr set
+ * param: $s1 is the expr set
+ * param: $s2 is the expr set
+ * return: result = $s1 union $s2
+ */
+std::set<z3::expr, exprcomp> checker::union_set(std::set<z3::expr, exprcomp> s1, std::set<z3::expr, exprcomp> s2) {
+        for (auto item : s2) {
+                s1.insert(item);
+        }
+        return s1;
+}
+
+/**
  *###################### treechecker ####################################3
  */
-
 bool treechecker::is_repeat(z3::expr_vector vec) {
         std::set<z3::expr, exprcomp> args_set;
         for (int i=0; i<vec.size(); i++) {
@@ -744,22 +819,7 @@ bool treechecker::is_size_var(z3::expr x) {
         return false;
 }
 
-bool treechecker::is_numeral(z3::expr x) {
-        if (x.is_numeral()) return true;
-        if (x.is_app()
-            && (x.decl().name().str() == "to_real" || x.decl().name().str() == "to_int")
-            && is_numeral(x.arg(0))) return true;
-        return false;
-}
 
-
-
-std::set<z3::expr, exprcomp> treechecker::union_set(std::set<z3::expr, exprcomp> s1, std::set<z3::expr, exprcomp> s2) {
-        for (auto item : s2) {
-                s1.insert(item);
-        }
-        return s1;
-}
 
 /**
  * check args

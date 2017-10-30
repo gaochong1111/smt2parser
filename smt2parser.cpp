@@ -1220,8 +1220,15 @@ void smt2parser::parse_check_sat() {
         check_rparen("invalid check-sat, excepted ')'");
         logger() << "solve the sat ...\n";
 
+        // solve the tree predicate case
         treesolver sol(m_ctx);
         sol.check_sat();
+
+        //TODO: solve the list predicate case
+        
+
+
+
 }
 
 void smt2parser::parse_cmd() {
