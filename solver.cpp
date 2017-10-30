@@ -161,17 +161,20 @@ void listsolver::check_preds() {
  */
 z3::check_result listsolver::check_sat() {
         logger() << "list sat problem: " << std::endl;
-        // 1.1 compute all phi_p
-        // compute_all_delta_ge1_p();
+        // 1.1 compute all phi_p TODO.
+        // compute_all_phi_p();
         z3::expr formula = m_ctx.get_negf();
         // 2.2.1 formula -> (delta \and sigma)
         z3::expr data(z3_ctx());
         z3::expr space(z3_ctx());
-        // get_data_space(formula, data, space);
-        // z3::expr f_abs = data;
+        get_data_space(formula, data, space);
+        z3::expr f_abs = data;
         // 2.2.2 space part
-        // f_abs = f_abs && abs_space(space);
-
+        if (Z3_ast(f_abs) == 0) {
+                // f_abs = abs_space(space);
+        } else {
+                // f_abs = f_abs && abs_space(space);
+        }
         // 2.2.3 sep (\phi_star)
         // f_abs = f_abs && abs_phi_star();
         z3::expr f_abs = z3_ctx().bool_val(true);
