@@ -5,7 +5,7 @@
 /**
  *###################### solver ####################################3
  */
-solver::solve() {
+void solver::solve() {
         // 1. check_preds
         check_preds();
         struct timeval tvBegin, tvEnd, tvDiff;
@@ -14,10 +14,11 @@ solver::solve() {
 
         // 3. check sat or entl
         if (m_ctx.is_sat()) {
-                 std::cout << "Checking satisfiability."
+                std::cout << "Checking satisfiability.\n";
                  z3::check_result result = check_sat();
                  std::cout << "The result: " << result << std::endl;
         } else {
+                std::cout << "Checking entailment.\n";
                 z3::check_result result = check_entl();
                 std::cout << "The result: " << result << std::endl;
         }
@@ -174,10 +175,69 @@ z3::expr solver::abs_phi_star() {
         return phi_star;
 }
 
+/**
+ *###################### listsolver ####################################
+ */
+/**
+ * check whether all predicate definitions are corresponding to userdef constraints
+ */
+void listsolver::check_preds() {
+        for (int i=0; i<m_ctx.pred_size(); i++) {
+                predicate pred = m_ctx.get_pred(i);
+                if (pred.is_tree()) {
+                        listchecker lc(pred);
+                        lc.check_args();
+                        lc.check_rec_rules();
+                }
+        }
+}
+
+/**
+ * check sat, negf in m_ctx
+ * or check entl, negf |= posf
+ * @return z3::check_result
+ */
+z3::check_result listsolver::check_sat() {
+        // compute_all_delta_ge1_p();
+        logger() << "list sat problem: " << std::endl;
+        z3::expr formula = m_ctx.get_negf();
+        // 2.2.1 formula -> (delta \and sigma)
+        z3::expr data(z3_ctx());
+        z3::expr space(z3_ctx());
+        // get_data_space(formula, data, space);
+        // z3::expr f_abs = data;
+        // 2.2.2 space part
+        // f_abs = f_abs && abs_space(space);
+
+        // 2.2.3 sep (\phi_star)
+        // f_abs = f_abs && abs_phi_star();
+        z3::expr f_abs = z3_ctx().bool_val(true);
+
+        z3::solver s(z3_ctx());
+        s.add(f_abs);
+        z3::check_result result = s.check();
+        std::cout << "result: " << result << std::endl;
+        return result;
+}
+
+/**
+ * check sat, negf in m_ctx
+ * or check entl, negf |= posf
+ * @return z3::check_result
+ */
+z3::check_result listsolver::check_entl() {
+        // TODO ....
+        logger() << "list entl problem:\n";
+        z3::solver s(z3_ctx());
+        z3::expr f_abs = z3_ctx().bool_val(true);
+        s.add(f_abs);
+        z3::check_result result = s.check();
+        return result;
+}
 
 
 /**
- *###################### treesolver ####################################3
+ *###################### treesolver ####################################
  */
 /**
  * check sat, negf in m_ctx
@@ -185,51 +245,23 @@ z3::expr solver::abs_phi_star() {
  * @return z3::check_result
  */
 z3::check_result treesolver::check_sat() {
-        // 1. check_preds
-        // m_ctx.logger() << "check preds" << std::endl;
-        // check_preds();
-        // struct timeval tvBegin, tvEnd, tvDiff;
-        // 2. check_sat
-        // logger() << "check sat" << std::endl;
-        // gettimeofday (&tvBegin, NULL);
-        // 2.1 compute_all_delta_ge1_p
         compute_all_delta_ge1_p();
-        // delta_ge1_predicates.push_back(z3_ctx().bool_val(true));
-        // 2.2 formula -> abs
-        // if (m_ctx.is_sat()) {
-                logger() << "sat problem: " << std::endl;
-                z3::expr formula = m_ctx.get_negf();
-                // logger() << "the formula: " << formula << std::endl;
-                // 2.2.1 formula -> (delta \and sigma)
-                z3::expr data(z3_ctx());
-                z3::expr space(z3_ctx());
-                get_data_space(formula, data, space);
-                // std::cout << "data: " << data << std::endl;
-                // std::cout << "space: " << space << std::endl;
-                z3::expr f_abs = data;
-                // 2.2.2 space part
-                f_abs = f_abs && abs_space(space);
+        logger() << "tree sat problem: " << std::endl;
+        z3::expr formula = m_ctx.get_negf();
+        // 2.2.1 formula -> (delta \and sigma)
+        z3::expr data(z3_ctx());
+        z3::expr space(z3_ctx());
+        get_data_space(formula, data, space);
+        z3::expr f_abs = data;
+        // 2.2.2 space part
+        f_abs = f_abs && abs_space(space);
 
-                // 2.2.3 sep (\phi_star)
-                f_abs = f_abs && abs_phi_star();
+        // 2.2.3 sep (\phi_star)
+        f_abs = f_abs && abs_phi_star();
 
-                // std::cout << "f_abs: " << f_abs << std::endl;
-                z3::solver s(z3_ctx());
-                s.add(f_abs);
-                z3::check_result result = s.check();
-                std::cout << "result: " << result << std::endl;
-                // if (result == z3::check_result::sat) {
-                //        std::cout << "model: " << s.get_model() << std::endl;
-                // }
-        // }
-        // time difference
-        // gettimeofday (&tvEnd, NULL);
-        // long int diff = (tvEnd.tv_usec + 1000000 * tvEnd.tv_sec)
-                // - (tvBegin.tv_usec + 1000000 * tvBegin.tv_sec);
-        // tvDiff.tv_sec = diff / 1000000;
-        // tvDiff.tv_usec = diff % 1000000;
-        // std::string info = logger().string_format("\nTotal time (sec): %ld.%06ld\n\n", tvDiff.tv_sec, tvDiff.tv_usec);
-        // std::cout << info;
+        z3::solver s(z3_ctx());
+        s.add(f_abs);
+        z3::check_result result = s.check();
         return result;
 }
 
@@ -241,6 +273,7 @@ z3::check_result treesolver::check_sat() {
  */
 z3::check_result treesolver::check_entl() {
 	// TODO ....
+        logger() << "tree entl problem:\n";
 	z3::solver s(z3_ctx());
 	z3::expr f_abs = z3_ctx().bool_val(true);
     s.add(f_abs);
@@ -261,7 +294,6 @@ void treesolver::check_preds() {
                 }
         }
 
-        return true;
 }
 
 /**
@@ -1043,4 +1075,21 @@ void treechecker::check_rec_rule(pred_rule &rule) {
                         throw smt2exception(info);
                 }
         }
+}
+
+
+/**
+ *################## list checker #############
+ */
+
+void listchecker::check_args() {
+
+}
+
+void listchecker::check_rec_rule(pred_rule &rule) {
+        // for (int i=0; )
+}
+
+void listchecker::check_rec_rules() {
+
 }

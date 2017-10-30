@@ -69,6 +69,10 @@ pred_rule(z3::expr data, z3::expr pto, z3::expr_vector rec_apps)
                 return m_rec_apps.size() == 2;
         }
 
+        bool is_list_rule() {
+                return m_rec_apps.size() == 1;
+        }
+
         friend std::ostream& operator<<(std::ostream& out, pred_rule& pr) {
                 out << "data: " << pr.m_data << std::endl;
                 out << "pto: " << pr.m_pto << std::endl;
@@ -125,6 +129,13 @@ predicate(z3::func_decl fun, z3::expr_vector pars, z3::expr base_rule)
         bool is_tree() {
                 for (int i=0; i<m_rec_rules.size(); i++) {
                         if (!m_rec_rules[i].is_tree_rule()) return false;
+                }
+                return true;
+        }
+
+        bool is_list() {
+                for (int i=0; i<m_rec_rules.size(); i++) {
+                        if (!m_rec_rules[i].is_list_rule()) return false;
                 }
                 return true;
         }

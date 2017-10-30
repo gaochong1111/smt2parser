@@ -1221,14 +1221,20 @@ void smt2parser::parse_check_sat() {
         logger() << "solve the sat ...\n";
 
         // solve the tree predicate case
-        treesolver sol(m_ctx);
-        sol.check_sat();
+        if (m_ctx.is_tree()) {
+                std::cout << "tree solver.\n";
+                treesolver sol(m_ctx);
+                sol.solve();
+        } else if (m_ctx.is_list()) {
+                //TODO: solve the list predicate case
+                std::cout << "list solver.\n";
+                listsolver sol(m_ctx);
+                sol.solve();
 
-        //TODO: solve the list predicate case
-        
 
-
-
+        } else {
+                std::cout << "unsupported. \n";
+        }
 }
 
 void smt2parser::parse_cmd() {

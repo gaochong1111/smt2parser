@@ -40,14 +40,14 @@
 
 ;; declare set of locations
 
-(declare-fun alpha0 () SetLoc)
+;; (declare-fun alpha0 () SetLoc)
 
 (assert 
 	(tobool 
  	        (ssep 
                 (pto y_emp (ref next z_emp))
-		(index alpha0 (ls y_emp w_emp )) 
-		(pto w_emp (ref next z_emp )) 
+				(ls y_emp w_emp )
+				(pto w_emp (ref next z_emp )) 
 		)
 	)
 )
