@@ -1,9 +1,17 @@
-* files
-scanner.h -> util/symbol.h vector.h rational.h
+1. list flag:
+	1 recursive call
+	and 1 recursive rule
 
-scanner.cpp -> scanner.h
+2. double-link list flag:
+	E occurs in gamma
 
-symbol.h -> util.h tptr.h string_buffer.h
-symbol.cpp -> symbol.h str_hashtable.h region.h string_buffer.h z3_omp.h
+3. static parameters
+	symbol-flag: staticB, staticC ?
+
+4. compute phi_p
+
+5. \varphi |= \psi
+	5.1 vars(\psi) \subset vars(\varphi) 
+	5.2 equivalence ~phi ?
 
 
